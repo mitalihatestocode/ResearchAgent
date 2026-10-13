@@ -1,0 +1,18 @@
+# Phase 1
+streamlit==1.38.0
+pdfplumber==0.11.4
+python-dotenv==1.0.1
+pandas==2.2.2
+
+# Phase 2 - RAG core (chunking, embeddings, vector search)
+sentence-transformers==3.1.1
+faiss-cpu==1.9.0
+numpy==1.26.4
+
+# Phase 3 - LLM + structured schemas
+groq==0.11.0
+pydantic==2.9.2
+
+# Phase 3 - LLM + agent + structured data
+groq==0.11.0
+pydantic==2.9.2
