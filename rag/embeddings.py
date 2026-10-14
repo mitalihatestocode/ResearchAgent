@@ -18,17 +18,21 @@ Model used: all-MiniLM-L6-v2
 - 384-dimensional vectors
 """
 
+import threading
+
 from sentence_transformers import SentenceTransformer
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
 _model = None  # loaded lazily so importing this file doesn't trigger a slow model load
+_lock = threading.Lock()  # the agent analyses papers in parallel threads
 
 
 def get_model() -> SentenceTransformer:
     """Load the embedding model once and reuse it (loading is slow-ish)."""
     global _model
-    if _model is None:
-        _model = SentenceTransformer(_MODEL_NAME)
+    with _lock:
+        if _model is None:
+            _model = SentenceTransformer(_MODEL_NAME)
     return _model
 
 
@@ -45,10 +49,10 @@ def embed_texts(texts: list[str]):
     model = get_model()
     # normalize_embeddings=True makes cosine similarity == dot product,
     # which is what our FAISS index (IndexFlatIP) expects.
-    return model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+    with _lock:
+        return model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
 
 
 def embed_query(query: str):
     """Embed a single query string the same way chunks were embedded."""
-    model = get_model()
-    return model.encode([query], normalize_embeddings=True, show_progress_bar=False)[0]
+    return embed_texts([query])[0]

@@ -1,0 +1,114 @@
+{
+  "name": "ResearchAgent RAG benchmark v1",
+  "description": "Hand-labelled questions on the three sample papers (scripts/download_sample_papers.py). Every expected answer was verified against the papers' extracted text; 'evidence_pages' are the pages where it appears.",
+  "items": [
+    {
+      "id": "Q01",
+      "question": "Which datasets does the Corrective RAG (CRAG) paper evaluate on?",
+      "paper": "corrective_rag_2024.pdf",
+      "expected": [["PopQA"], ["Biography", "Bio"], ["PubHealth", "Pub Health"], ["Arc-Challenge", "ARC Challenge", "ARC-Challenge"]],
+      "evidence_pages": [2, 6]
+    },
+    {
+      "id": "Q02",
+      "question": "Which pretrained model is used to initialize the retrieval evaluator in CRAG?",
+      "paper": "corrective_rag_2024.pdf",
+      "expected": [["T5-large", "T5 large", "T5"]],
+      "evidence_pages": [4]
+    },
+    {
+      "id": "Q03",
+      "question": "What are the knowledge retrieval actions that CRAG can trigger?",
+      "paper": "corrective_rag_2024.pdf",
+      "expected": [["Correct"], ["Incorrect"], ["Ambiguous"]],
+      "evidence_pages": [2, 4, 5]
+    },
+    {
+      "id": "Q04",
+      "question": "How does CRAG extend retrieval beyond a static corpus when retrieved documents are poor?",
+      "paper": "corrective_rag_2024.pdf",
+      "expected": [["web search", "web searches", "web"]],
+      "evidence_pages": [1, 2]
+    },
+    {
+      "id": "Q05",
+      "question": "Which model is used as the generator in the original RAG paper by Lewis et al.?",
+      "paper": "rag_lewis_2020.pdf",
+      "expected": [["BART"]],
+      "evidence_pages": [3]
+    },
+    {
+      "id": "Q06",
+      "question": "What document collection does the Lewis et al. RAG model retrieve from, and how many documents does it contain?",
+      "paper": "rag_lewis_2020.pdf",
+      "expected": [["Wikipedia"], ["21M", "21 million", "21,000,000"]],
+      "evidence_pages": [4]
+    },
+    {
+      "id": "Q07",
+      "question": "What are the two variants of the RAG model proposed by Lewis et al.?",
+      "paper": "rag_lewis_2020.pdf",
+      "expected": [["RAG-Sequence", "RAG Sequence"], ["RAG-Token", "RAG Token"]],
+      "evidence_pages": [3, 4]
+    },
+    {
+      "id": "Q08",
+      "question": "Which open-domain question answering datasets are used to evaluate the Lewis et al. RAG paper?",
+      "paper": "rag_lewis_2020.pdf",
+      "expected": [["Natural Questions", "NQ"], ["TriviaQA", "TQA"], ["WebQuestions", "WQ"], ["CuratedTrec", "CT"]],
+      "evidence_pages": [2, 4]
+    },
+    {
+      "id": "Q09",
+      "question": "What types of reflection tokens does Self-RAG use?",
+      "paper": "self_rag_2023.pdf",
+      "expected": [["Retrieve"], ["ISREL", "IsRel", "relevance"], ["ISSUP", "IsSup", "support"], ["ISUSE", "IsUse", "useful"]],
+      "evidence_pages": [4]
+    },
+    {
+      "id": "Q10",
+      "question": "Which base language models are used as the Self-RAG generator?",
+      "paper": "self_rag_2023.pdf",
+      "expected": [["Llama2", "Llama 2", "LLaMA2", "Llama-2"], ["7B"], ["13B"]],
+      "evidence_pages": [7]
+    },
+    {
+      "id": "Q11",
+      "question": "How many instruction-output pairs are used to train Self-RAG?",
+      "paper": "self_rag_2023.pdf",
+      "expected": [["150k", "150,000", "150 k", "150K"]],
+      "evidence_pages": [7]
+    },
+    {
+      "id": "Q12",
+      "question": "Which retriever model does Self-RAG use by default?",
+      "paper": "self_rag_2023.pdf",
+      "expected": [["Contriever"]],
+      "evidence_pages": [7]
+    },
+    {
+      "id": "N01",
+      "question": "What was the total training cost of Self-RAG in US dollars?",
+      "paper": "self_rag_2023.pdf",
+      "expected": [],
+      "expect_refusal": true,
+      "note": "In scope but not reported in the paper: the agent must say so rather than invent a number."
+    },
+    {
+      "id": "N02",
+      "question": "How much carbon dioxide was emitted while training CRAG?",
+      "paper": "corrective_rag_2024.pdf",
+      "expected": [],
+      "expect_refusal": true,
+      "note": "Not reported in the paper."
+    },
+    {
+      "id": "N03",
+      "question": "What is the capital of France?",
+      "paper": null,
+      "expected": [],
+      "expect_refusal": true,
+      "note": "Out of scope: no tools should run and nothing should be invented."
+    }
+  ]
+}

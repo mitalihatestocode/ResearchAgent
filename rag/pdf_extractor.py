@@ -13,7 +13,55 @@ the app, it always returns a clear status so the agent (and the UI) knows
 whether extraction actually worked.
 """
 
+import re
+
 import pdfplumber
+
+from safety.guardrails import MAX_PAGES_PER_PAPER
+
+# Common PDF ligature glyphs that break keyword search ("ﬁne-tuning" != "fine-tuning")
+_LIGATURES = {"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\ufb03": "ffi", "\ufb04": "ffl"}
+
+
+X_TOLERANCE = 1.5  # tighter than pdfplumber's default (3) - stops words merging in dense layouts
+
+
+def extract_page_text(page) -> str:
+    """
+    Extract one page's text, handling two-column layouts (common in
+    research papers). Without this, lines from the left and right columns
+    are interleaved and every chunk becomes a mix of two unrelated
+    passages. A page is treated as two-column when almost no words cross
+    the vertical midline.
+    """
+    words = page.extract_words(x_tolerance=X_TOLERANCE)
+    if len(words) > 80:
+        mid = page.width / 2
+        crossing = sum(1 for w in words if w["x0"] < mid - 2 and w["x1"] > mid + 2)
+        left = sum(1 for w in words if w["x1"] <= mid)
+        right = sum(1 for w in words if w["x0"] >= mid)
+        if crossing / len(words) < 0.03 and min(left, right) > 0.2 * len(words):
+            # Full-width header band (title, authors) above the columns is read as
+            # one block; otherwise a centred title would be cut in half.
+            header_bottom = max((w["bottom"] for w in words
+                                 if w["x0"] < mid - 2 and w["x1"] > mid + 2 and w["top"] < page.height * 0.4),
+                                default=0)
+            parts = []
+            if header_bottom:
+                parts.append(page.crop((0, 0, page.width, header_bottom + 1)).extract_text(x_tolerance=X_TOLERANCE) or "")
+            top = header_bottom + 1 if header_bottom else 0
+            parts += [page.crop((0, top, mid, page.height)).extract_text(x_tolerance=X_TOLERANCE) or "",
+                      page.crop((mid, top, page.width, page.height)).extract_text(x_tolerance=X_TOLERANCE) or ""]
+            return "\n".join(parts)
+    return page.extract_text(x_tolerance=X_TOLERANCE) or ""
+
+
+def clean_page_text(text: str) -> str:
+    """Light normalisation: fix ligatures and words hyphenated across line breaks."""
+    for glyph, replacement in _LIGATURES.items():
+        text = text.replace(glyph, replacement)
+    text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)  # "classi-\nfication" -> "classification"
+    return text.strip()
 
 
 class PDFExtractionError(Exception):
@@ -57,13 +105,16 @@ def extract_text_from_pdf(file_path_or_buffer, source_name: str) -> dict:
             if num_pages == 0:
                 return _empty_result(source_name, "PDF has zero pages.")
 
-            for page_number, page in enumerate(pdf.pages, start=1):
+            # Guardrail: very long documents (theses, books) are truncated to
+            # keep processing time and LLM cost bounded.
+            truncated = num_pages > MAX_PAGES_PER_PAPER
+            for page_number, page in enumerate(pdf.pages[:MAX_PAGES_PER_PAPER], start=1):
                 # extract_text() returns None if a page has no extractable
                 # text (e.g. it's a scanned image with no OCR layer)
-                page_text = page.extract_text()
+                page_text = extract_page_text(page)
                 pages_data.append({
                     "page_number": page_number,
-                    "text": page_text.strip() if page_text else "",
+                    "text": clean_page_text(page_text) if page_text else "",
                 })
 
     except Exception as e:
@@ -99,7 +150,9 @@ def extract_text_from_pdf(file_path_or_buffer, source_name: str) -> dict:
     return {
         "source_name": source_name,
         "status": "ok",
-        "message": f"Extracted text from {len(pages_data)} page(s).",
+        "message": f"Extracted text from {len(pages_data)} page(s)."
+                   + (f" Only the first {MAX_PAGES_PER_PAPER} of {num_pages} pages were processed."
+                      if truncated else ""),
         "full_text": full_text,
         "pages": pages_data,
         "num_pages": len(pages_data),

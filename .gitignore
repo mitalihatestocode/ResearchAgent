@@ -4,5 +4,12 @@ __pycache__/
 *.pyc
 .env
 data/vector_index/
-.streamlit/
+.streamlit/secrets.toml
 *.pdf
+.pytest_cache/
+.DS_Store
+.gstack/
+data/app/
+
+# submission documents are generated but should be committed
+!docs/submission/*.pdf

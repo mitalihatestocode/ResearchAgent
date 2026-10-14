@@ -27,9 +27,10 @@ import json
 
 from schemas.paper_schema import PaperInfo
 from agent.llm_client import call_llm_json, LLMError
-from agent.prompts import comparison_prompt
+from agent.prompts import comparison_prompt, TEMPERATURE
 
 COMPARISON_PARAMETERS = [
+    ("research_problem", "Research Problem"),
     ("dataset", "Dataset"),
     ("methodology", "Methodology"),
     ("models", "Models/Algorithms"),
@@ -65,11 +66,13 @@ def build_comparison_table(paper_infos: list[PaperInfo]) -> dict:
     }
 
 
-def compare_papers(paper_infos: list[PaperInfo]) -> dict:
+def compare_papers(paper_infos: list[PaperInfo], focus: str = "") -> dict:
     """
     Args:
         paper_infos: list of PaperInfo objects (from Phase 3 analysis)
                      for 2 or more papers.
+        focus: the user's original request, so the narrative can emphasise
+               what they asked about (e.g. "models and metrics").
 
     Returns:
         {
@@ -78,6 +81,7 @@ def compare_papers(paper_infos: list[PaperInfo]) -> dict:
             "table": dict,               # from build_comparison_table()
             "similarities": str,          # AI-generated narrative
             "differences": str,           # AI-generated narrative
+            "key_takeaway": str,          # AI-generated one-liner
         }
     """
     if len(paper_infos) < 2:
@@ -91,6 +95,7 @@ def compare_papers(paper_infos: list[PaperInfo]) -> dict:
             "table": None,
             "similarities": "",
             "differences": "",
+            "key_takeaway": "",
         }
 
     table = build_comparison_table(paper_infos)
@@ -103,15 +108,16 @@ def compare_papers(paper_infos: list[PaperInfo]) -> dict:
     )
 
     try:
-        system, user = comparison_prompt(papers_summary)
-        result = call_llm_json(system, user)
+        system, user = comparison_prompt(papers_summary, focus)
+        result = call_llm_json(system, user, temperature=TEMPERATURE["comparison"])
 
         return {
             "status": "ok",
             "message": f"Compared {len(paper_infos)} papers.",
             "table": table,
-            "similarities": result.get("similarities", ""),
-            "differences": result.get("differences", ""),
+            "similarities": str(result.get("similarities", "")),
+            "differences": str(result.get("differences", "")),
+            "key_takeaway": str(result.get("key_takeaway", "")),
         }
 
     except LLMError as e:
@@ -124,4 +130,5 @@ def compare_papers(paper_infos: list[PaperInfo]) -> dict:
             "table": table,
             "similarities": "",
             "differences": "",
+            "key_takeaway": "",
         }

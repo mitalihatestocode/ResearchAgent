@@ -6,7 +6,7 @@ small script you run directly to sanity-check that pdf_extractor.py works
 before wiring it into the Streamlit app.
 
 Usage:
-    python tests/test_pdf_extractor.py path/to/your/paper.pdf
+    python scripts/try_pdf_extractor.py path/to/your/paper.pdf
 """
 
 import sys
@@ -21,7 +21,7 @@ from rag.pdf_extractor import extract_text_from_pdf
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python tests/test_pdf_extractor.py path/to/paper.pdf")
+        print("Usage: python scripts/try_pdf_extractor.py path/to/paper.pdf")
         sys.exit(1)
 
     pdf_path = sys.argv[1]

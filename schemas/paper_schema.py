@@ -21,6 +21,33 @@ from typing import Optional
 
 NOT_FOUND_TEXT = "Not explicitly reported in the provided paper."
 
+ANALYSIS_FIELDS = [
+    "research_problem", "objectives", "dataset", "methodology",
+    "models", "evaluation_metrics", "results", "limitations",
+]
+
+FIELD_LABELS = {
+    "research_problem": "Research Problem",
+    "objectives": "Objectives",
+    "dataset": "Dataset",
+    "methodology": "Methodology",
+    "models": "Models",
+    "evaluation_metrics": "Evaluation Metrics",
+    "results": "Results",
+    "limitations": "Limitations",
+}
+
+
+def _to_text(value):
+    """LLMs sometimes return lists/dicts/numbers for text fields - normalise them."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return "; ".join(str(item) for item in value if item not in (None, ""))
+    if isinstance(value, dict):
+        return "; ".join(f"{k}: {v}" for k, v in value.items())
+    return str(value)
+
 
 class PaperInfo(BaseModel):
     source_name: str  # which uploaded file this came from - always required
@@ -38,41 +65,42 @@ class PaperInfo(BaseModel):
     results: str = NOT_FOUND_TEXT
     limitations: str = NOT_FOUND_TEXT
 
+    # field name -> ["p.3 (Results)", ...] - where each field's evidence came from
+    field_sources: dict[str, list[str]] = Field(default_factory=dict)
+
+    @field_validator("title", "authors", "year", mode="before")
+    @classmethod
+    def normalise_metadata(cls, value):
+        return _to_text(value)
+
+    @field_validator(*ANALYSIS_FIELDS, mode="before")
+    @classmethod
+    def convert_list_to_string(cls, value):
+        text = _to_text(value)
+        return text if text and text.strip() else NOT_FOUND_TEXT
+
+    @property
+    def display_name(self) -> str:
+        return self.title or self.source_name
+
+    def is_reported(self, field_name: str) -> bool:
+        return "not explicitly reported" not in getattr(self, field_name).lower()
+
+    def completeness(self) -> float:
+        """Share of analysis fields that were actually found in the paper (0..1)."""
+        return sum(self.is_reported(f) for f in ANALYSIS_FIELDS) / len(ANALYSIS_FIELDS)
+
     def to_display_dict(self) -> dict:
         """Flat dict for showing in a Streamlit comparison table."""
-        return {
+        data = {
             "Source File": self.source_name,
             "Title": self.title or NOT_FOUND_TEXT,
             "Authors": self.authors or NOT_FOUND_TEXT,
             "Year": self.year or NOT_FOUND_TEXT,
-            "Research Problem": self.research_problem,
-            "Objectives": self.objectives,
-            "Dataset": self.dataset,
-            "Methodology": self.methodology,
-            "Models": self.models,
-            "Evaluation Metrics": self.evaluation_metrics,
-            "Results": self.results,
-            "Limitations": self.limitations,
         }
-
-
-
-    @field_validator(
-        "research_problem",
-        "objectives",
-        "dataset",
-        "methodology",
-        "models",
-        "evaluation_metrics",
-        "results",
-        "limitations",
-        mode="before",
-    )
-    @classmethod
-    def convert_list_to_string(cls, value):
-        if isinstance(value, list):
-            return "; ".join(str(item) for item in value)
-        return value
+        for field in ANALYSIS_FIELDS:
+            data[FIELD_LABELS[field]] = getattr(self, field)
+        return data
 
     @classmethod
     def from_tool_outputs(cls, source_name: str, metadata_result: dict, analysis_result: dict) -> "PaperInfo":
@@ -94,12 +122,15 @@ class PaperInfo(BaseModel):
             kwargs["authors"] = metadata_result.get("authors")
             kwargs["year"] = metadata_result.get("year")
 
-        for field_name in [
-            "research_problem", "objectives", "dataset", "methodology",
-            "models", "evaluation_metrics", "results", "limitations",
-        ]:
+        # The analysis prompt also asks for title/authors/year as a fallback
+        for key in ("title", "authors", "year"):
+            if not kwargs.get(key) and fields.get(key):
+                kwargs[key] = fields.get(key)
+
+        for field_name in ANALYSIS_FIELDS:
             value = fields.get(field_name)
             if value:  # only override the default if the LLM actually gave something
                 kwargs[field_name] = value
 
+        kwargs["field_sources"] = analysis_result.get("field_sources", {}) or {}
         return cls(**kwargs)

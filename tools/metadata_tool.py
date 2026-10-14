@@ -7,8 +7,17 @@ the full paper analysis) because metadata is useful early - e.g. to
 label a paper nicely in the UI before the heavier analysis step runs.
 """
 
+import re
+
 from agent.llm_client import call_llm_json, LLMError
-from agent.prompts import metadata_prompt
+from agent.prompts import metadata_prompt, TEMPERATURE
+from safety.guardrails import sanitize_evidence
+
+
+def _clean_year(value):
+    """Keep only a plausible 4-digit year; anything else becomes None."""
+    match = re.search(r"\b(19|20)\d{2}\b", str(value or ""))
+    return match.group(0) if match else None
 
 
 def extract_metadata(extraction_result: dict) -> dict:
@@ -37,11 +46,13 @@ def extract_metadata(extraction_result: dict) -> dict:
             "title": None, "authors": None, "year": None,
         }
 
-    first_page_text = extraction_result["pages"][0]["text"]
+    # Some PDFs have a blank or cover first page - use the first page with text
+    first_page_text = next((p["text"] for p in extraction_result["pages"] if p["text"]), "")
+    first_page_text = sanitize_evidence(first_page_text)
 
     try:
         system, user = metadata_prompt(source_name, first_page_text)
-        result = call_llm_json(system, user)
+        result = call_llm_json(system, user, temperature=TEMPERATURE["metadata"])
 
         return {
             "status": "ok",
@@ -49,7 +60,7 @@ def extract_metadata(extraction_result: dict) -> dict:
             "source_name": source_name,
             "title": result.get("title"),
             "authors": result.get("authors"),
-            "year": result.get("year"),
+            "year": _clean_year(result.get("year")),
         }
 
     except LLMError as e:

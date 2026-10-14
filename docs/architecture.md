@@ -1,70 +1,60 @@
 # ResearchAgent — Architecture
 
-## Flow
+![Architecture diagram](architecture.png)
+
+([SVG version](architecture.svg))
+
+## Agent loop
+
+```mermaid
+flowchart TD
+    U[User question] --> G{Input guardrails}
+    G -- blocked --> R1[Refusal + reason]
+    G -- ok --> P[Planner LLM<br/>intent · target papers · tools]
+    P --> S{In scope?}
+    S -- no --> C{Papers strongly related?<br/>scope self-check}
+    C -- no --> R2[Honest out-of-scope answer]
+    C -- yes, override --> D
+    S -- yes --> D[Dependency resolver<br/>+ verification policy]
+    D --> E[Execute next tool]
+    E --> O{Observe status}
+    O -- weak evidence --> QR[LLM query rewrite → retrieve again]
+    QR --> E
+    O -- answer drafted --> V[Verifier: LLM judge + citation check]
+    V -- unsupported claims --> RV[Revise once with feedback]
+    RV --> V
+    V -- ok --> E
+    O -- tool error --> E
+    E -- plan finished --> OG[Output guardrails + labels]
+    OG --> A[Final answer · report · trace]
 ```
-User
-  |
-  v
-Streamlit UI
-  |
-  v
-Research Agent (orchestrator.py)
-  |
-  v
-Planner (planner.py) --> produces an explicit JSON plan based on the
-  |                       user's specific question (this is the
-  |                       "autonomous decision-making" part: the agent
-  |                       decides WHICH steps/tools are needed, rather
-  |                       than always running the same fixed pipeline)
-  v
-Orchestrator enforces step dependencies, then executes in canonical order:
-  |
-  |-- extract_metadata        (title/authors/year per paper)
-  |-- analyze_papers           (structured extraction per paper, via
-  |                              multi-topic RAG retrieval + LLM)
-  |-- rag_retrieval             (direct retrieval for narrow factual asks)
-  |-- compare_papers            (deterministic table + AI narrative)
-  |-- identify_research_gaps    (LLM suggestions grounded in reported limitations)
-  |-- generate_report           (deterministic assembly of everything above)
-  v
-Streamlit UI (renders agent trace + results + downloadable report)
-```
 
-Only the steps the Planner actually selected (plus any auto-inserted
-prerequisites) run for a given question - a narrow question like "what
-dataset did paper 1 use" runs a much smaller subset than "compare these
-papers and find research gaps."
+## Tools
 
-## Why "Plan then Execute" instead of a free-roaming LangChain Agent/CrewAI?
+| Tool | Type | Requires | Purpose |
+|---|---|---|---|
+| `extract_metadata` | LLM | – | title, authors, year from the first page |
+| `analyze_papers` | RAG + LLM | – | 8 targeted retrievals per paper → structured `PaperInfo` with page sources |
+| `rag_retrieval` | local (+LLM rewrite) | – | hybrid search; rewrites the query when evidence is weak |
+| `answer_question` | LLM | rag_retrieval | grounded answer, `[S#]` citations |
+| `verify_answer` | LLM + code | answer_question | reflection: audit + one revision (added by policy) |
+| `compare_papers` | code + LLM | metadata, analysis | deterministic table + similarities/differences |
+| `identify_research_gaps` | LLM + guardrail | metadata, analysis | potential directions from author-reported limitations |
+| `search_related_work` | external API | metadata | arXiv/OpenAlex related work; prior-work check per gap |
+| `generate_report` | code | metadata, analysis | labelled Markdown report |
 
-1. **Explainability for viva.** We can point to the exact JSON plan the
-   LLM produced for a specific question and walk through why each step
-   was or wasn't included. A black-box autonomous agent loop is much
-   harder to defend under questioning.
-2. **Demo reliability.** A live demo in front of an examiner should not
-   risk an agent looping unpredictably or calling the wrong tool
-   repeatedly. An explicit plan is deterministic once generated.
-3. **Still genuinely agentic.** The system still exhibits: planning
-   (LLM decides the steps), tool selection (LLM decides which tools),
-   and multi-step autonomous execution (no hardcoded if/else deciding
-   the workflow — the LLM does).
+## Design decisions
 
-## Why FAISS?
-Local, no server/infra needed, well documented, free, and standard
-enough that comparing it to alternatives (Chroma, Pinecone) is an easy
-viva answer: "FAISS runs locally with no external dependency, which
-matters for a self-contained student project."
+**Plan-then-execute with observation, not a free-running ReAct loop.** The LLM plans once, then the orchestrator runs the plan. It still observes each step's status and corrects itself where that's safe: it rewrites the query, revises answers, and can override the planner's scope decision. This gives real autonomy without the main risks of an open-ended loop, such as repeated tool calls, runaway cost or a hung demo. Every decision is visible in the trace.
 
-## Why local embeddings (sentence-transformers) instead of an API?
-No rate limits, no cost, works offline once downloaded, and keeps the
-RAG pipeline independent of the LLM provider (so retrieval quality
-isn't affected by which LLM API we use for generation).
+**Tool registry.** The planner sees each tool's name, description and when-to-use text, the same pattern as function calling. Each tool's prerequisites live in the registry, so even an imperfect plan always executes correctly.
 
-## Structured paper representation
-Each paper is converted into a Pydantic model (see `schemas/paper_schema.py`,
-added in a later phase) with fields matching the FA rubric's comparison
-requirements (dataset, methodology, models, metrics, results,
-limitations, etc.). This structured form is what the Comparison Tool
-and Research Gap Tool operate on — not raw text — which is why the
-comparison table can be generated reliably rather than re-summarized
-from scratch every time.
+**Hybrid retrieval.** Dense embeddings capture meaning, while BM25 catches exact tokens such as model names, dataset names, metrics and numbers. Research questions are full of these. Reciprocal Rank Fusion merges the two rankings without tuning weights. A cosine relevance threshold, calibrated on real papers (off-topic 0.08–0.21, on-topic 0.43–0.71, threshold 0.28), keeps weakly related text away from the LLM.
+
+**Structured extraction before comparison.** Each paper becomes a validated Pydantic `PaperInfo`. The comparison table is pivoted from this data in plain Python, without another LLM call, so the table stays traceable to its source pages.
+
+**Deterministic report.** The report assembles outputs that are already grounded and labelled. Re-generating them through an LLM would only add another chance to drift from the source.
+
+**Local embeddings, hosted LLM.** Retrieval works offline and costs nothing. The LLM provider can be swapped by editing one file (`agent/llm_client.py`).
+
+**Why not LangChain or CrewAI?** The brief allows either, but a small hand-written orchestrator keeps every step explainable in a viva, avoids heavy dependencies, and still implements the same patterns: tool registry, planner, executor and reflection.
