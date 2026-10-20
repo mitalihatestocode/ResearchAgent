@@ -24,12 +24,12 @@
   <!-- User / UI -->
   <rect x="380" y="68" width="340" height="52" rx="26" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
   <text x="550" y="91" text-anchor="middle" class="t">User · Streamlit UI</text>
-  <text x="550" y="108" text-anchor="middle" class="s">sign-in · upload · chat · trace · report · evaluation</text>
+  <text x="550" y="108" text-anchor="middle" class="s">sign-in · upload · chat · trace · galaxy · report</text>
 
   <!-- Input guardrails -->
   <rect x="380" y="146" width="340" height="54" rx="8" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
   <text x="550" y="169" text-anchor="middle" class="t">Input guardrails</text>
-  <text x="550" y="187" text-anchor="middle" class="s">regex + Prompt Guard 2 (ML) · misuse · file checks · rate limit</text>
+  <text x="550" y="187" text-anchor="middle" class="s">patterns + Prompt Guard 2 (ML) · misuse · file checks</text>
   <path class="e" d="M550,120 L550,144"/>
 
   <!-- Planner + resolver -->
@@ -98,7 +98,7 @@
   <text x="766" y="486" class="g" fill="#e65100">ACTION · EXTERNAL</text>
   <rect x="766" y="496" width="272" height="72" rx="6" fill="#fff" stroke="#ffb74d"/>
   <text x="778" y="516" class="tool">search_related_work</text>
-  <text x="778" y="534" class="ts">arXiv → OpenAlex fallback · cached</text>
+  <text x="778" y="534" class="ts">arXiv → OpenAlex fallback</text>
   <text x="778" y="549" class="ts">prior-work check for every research gap</text>
   <text x="778" y="562" class="ts">(novelty claims verified against literature)</text>
   <rect x="766" y="578" width="272" height="90" rx="6" fill="#fff" stroke="#ffb74d"/>
@@ -106,7 +106,7 @@
   <text x="778" y="616" class="ts">deterministic Markdown assembly</text>
   <text x="778" y="631" class="ts">every section labelled: reported by authors /</text>
   <text x="778" y="645" class="ts">AI-generated / potential direction / external</text>
-  <text x="778" y="659" class="ts">→ .md + .json downloads</text>
+  <text x="778" y="659" class="ts">→ downloadable .md report</text>
 
   <!-- Infrastructure row -->
   <rect x="30" y="730" width="560" height="150" rx="12" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
@@ -156,7 +156,7 @@
   <!-- Output guardrails -->
   <rect x="200" y="916" width="700" height="62" rx="8" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
   <text x="550" y="940" text-anchor="middle" class="t">Output guardrails &amp; transparency</text>
-  <text x="550" y="960" text-anchor="middle" class="s">overclaim softening · XSS-safe rendering · source labels · verification badge · audit log</text>
+  <text x="550" y="960" text-anchor="middle" class="s">overclaim softening · XSS-safe rendering · source labels · verification badge</text>
   <path class="e" d="M1062,694 L1085,694 L1085,947 L902,947"/>
   <path class="e" d="M200,947 L14,947 L14,94 L378,94"/>
   <text x="28" y="520" class="ts" transform="rotate(-90 28 520)">final answer · report · trace → user</text>

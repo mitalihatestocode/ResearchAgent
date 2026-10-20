@@ -1,15 +1,8 @@
 .venv/
-venv/
 __pycache__/
-*.pyc
-.env
-data/vector_index/
-.streamlit/secrets.toml
-*.pdf
 .pytest_cache/
+.env
+data/app.db
+data/sample_papers/*.pdf
 .DS_Store
 .gstack/
-data/app/
-
-# submission documents are generated but should be committed
-!docs/submission/*.pdf

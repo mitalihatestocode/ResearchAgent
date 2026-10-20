@@ -1,82 +1,26 @@
-# ResearchAgent - Streamlit configuration
-# Security hardening + an iOS-inspired light/dark theme.
-
 [server]
-# Only reachable from this computer. To demo on another device on your network,
-# run: streamlit run app.py --server.address 0.0.0.0
-address = "localhost"
-# No source watching in the running app (also avoids slow scans of ML libraries)
+address = "localhost"      # only reachable from this computer
+maxUploadSize = 25         # MB
 fileWatcherType = "none"
-# Matches safety.guardrails.MAX_FILE_MB - oversized uploads are refused by the server itself
-maxUploadSize = 25
-# Cross-site request forgery protection for uploads/widget calls (default, set explicitly)
 enableXsrfProtection = true
-enableCORS = true
-# Nothing in the app needs to be served as a static file
-enableStaticServing = false
-runOnSave = false
 
 [client]
-# Never show Python stack traces / internals to end users
-showErrorDetails = "none"
+showErrorDetails = "none"  # no stack traces for users
 toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false
 
-[runner]
-magicEnabled = false
-
 [theme]
-font = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif"
-headingFont = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif"
-codeFont = "'SF Mono', ui-monospace, Menlo, Consolas, monospace"
-baseRadius = "12px"
-buttonRadius = "full"
-showWidgetBorder = false
-showSidebarBorder = false
-chartCategoricalColors = ["#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FF2D55", "#5AC8FA", "#FFCC00"]
-
-# iOS light: systemGroupedBackground + white cells
-[theme.light]
+base = "light"
 primaryColor = "#007AFF"
 backgroundColor = "#F2F2F7"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#1C1C1E"
-borderColor = "#E5E5EA"
-linkColor = "#007AFF"
-blueColor = "#007AFF"
-greenColor = "#34C759"
-orangeColor = "#FF9500"
-redColor = "#FF3B30"
-yellowColor = "#FFCC00"
-violetColor = "#AF52DE"
-grayColor = "#8E8E93"
-codeBackgroundColor = "#E9E9EE"
-dataframeHeaderBackgroundColor = "#F2F2F7"
+font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif"
+baseRadius = "12px"
+buttonRadius = "full"
+showWidgetBorder = false
 
-[theme.light.sidebar]
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F2F2F7"
-
-# iOS dark: true black + elevated grey cells
-[theme.dark]
-primaryColor = "#0A84FF"
-backgroundColor = "#000000"
-secondaryBackgroundColor = "#1C1C1E"
-textColor = "#F2F2F7"
-borderColor = "#38383A"
-linkColor = "#0A84FF"
-blueColor = "#0A84FF"
-greenColor = "#30D158"
-orangeColor = "#FF9F0A"
-redColor = "#FF453A"
-yellowColor = "#FFD60A"
-violetColor = "#BF5AF2"
-grayColor = "#8E8E93"
-codeBackgroundColor = "#2C2C2E"
-dataframeHeaderBackgroundColor = "#2C2C2E"
-
-[theme.dark.sidebar]
-backgroundColor = "#1C1C1E"
-secondaryBackgroundColor = "#2C2C2E"
+[logger]
+hideWelcomeMessage = true  # also hides Streamlit's own "install skills" pop-up
