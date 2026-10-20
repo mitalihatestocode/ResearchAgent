@@ -1,4 +1,3 @@
-"""Reading PDFs, splitting them into chunks, and hybrid search (embeddings + BM25 keywords)."""
 import math
 import re
 import threading
@@ -10,7 +9,7 @@ import pdfplumber
 
 MAX_PAGES = 80
 CHUNK_SIZE, OVERLAP = 900, 150
-MIN_SCORE = 0.28  # passages with lower cosine similarity are treated as irrelevant
+MIN_SCORE = 0.28
 
 SECTIONS = {
     "abstract": "Abstract", "introduction": "Introduction", "background": "Background",
@@ -23,10 +22,8 @@ SECTIONS = {
 }
 HEADING = re.compile(r"^\s*(?:(?:\d+(?:\.\d+)*|[IVX]+)\.?\s+)?([A-Za-z][A-Za-z &]{2,40}?)\s*:?\s*$")
 
-# ---------------- PDF reading ----------------
 
 def page_text(page):
-    """Reads one page. Two-column pages are read column by column (title block first)."""
     words = page.extract_words(x_tolerance=1.5)
     mid = page.width / 2
     crossing = [w for w in words if w["x0"] < mid - 2 and w["x1"] > mid + 2]
@@ -42,11 +39,10 @@ def page_text(page):
 def clean(text):
     for glyph, letters in {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl"}.items():
         text = text.replace(glyph, letters)
-    return re.sub(r"(\w)-\n(\w)", r"\1\2", text).strip()  # join words split across lines
+    return re.sub(r"(\w)-\n(\w)", r"\1\2", text).strip()
 
 
 def read_pdf(source, name):
-    """Returns {"name", "status": ok | empty | error, "message", "pages": [text of each page]}."""
     try:
         with pdfplumber.open(source) as pdf:
             total = len(pdf.pages)
@@ -59,7 +55,6 @@ def read_pdf(source, name):
     note = f" (first {MAX_PAGES} of {total})" if total > MAX_PAGES else ""
     return {"name": name, "status": "ok", "message": f"{len(pages)} pages{note}", "pages": pages}
 
-# ---------------- chunking ----------------
 
 def section_of(line):
     match = HEADING.match(line) if len(line) <= 60 else None
@@ -71,10 +66,9 @@ def sentences(text):
 
 
 def pack(sents):
-    """Packs whole sentences into ~900 character chunks; the last sentences repeat in the next chunk."""
     chunks, current = [], []
     for s in sents:
-        while len(s) > CHUNK_SIZE:  # very long "sentences" such as tables
+        while len(s) > CHUNK_SIZE:
             if current:
                 chunks.append(" ".join(current))
                 current = []
@@ -95,7 +89,6 @@ def pack(sents):
 
 
 def chunk(paper):
-    """Splits a paper into chunks: {"id", "paper", "page", "section", "text"}. References are skipped."""
     chunks, section = [], "Front Matter"
     for page_no, text in enumerate(paper["pages"], 1):
         blocks, lines = [], []
@@ -117,13 +110,11 @@ def chunk(paper):
                 n += 1
     return chunks
 
-# ---------------- embeddings + search ----------------
 
 _model, _lock = None, threading.Lock()
 
 
 def embed(texts):
-    """all-MiniLM-L6-v2 sentence embeddings (384 numbers per text, normalised so dot product = cosine)."""
     global _model
     with _lock:
         if _model is None:
@@ -142,15 +133,12 @@ def tokens(text):
 
 
 class Index:
-    """FAISS finds passages with similar meaning, BM25 finds exact words (model and dataset names, numbers).
-    The two rankings are merged with Reciprocal Rank Fusion: score = 1/(60 + rank)."""
 
     def __init__(self):
         self.vectors = faiss.IndexFlatIP(384)
         self.chunks, self.term_counts, self.doc_freq = [], [], Counter()
 
     def add(self, chunks):
-        """Adds chunks to both indexes and returns their vectors (used by the Paper Galaxy)."""
         if not chunks:
             return np.zeros((0, 384), dtype="float32")
         vectors = embed(c["text"] for c in chunks)
@@ -176,7 +164,6 @@ class Index:
         return scores
 
     def search(self, query, k=6, papers=None, mode="hybrid", min_score=None):
-        """Top-k chunks (optionally only from some papers), each with "score" (cosine) and "bm25"."""
         n = len(self.chunks)
         if not n:
             return []
@@ -200,10 +187,8 @@ class Index:
 
 
 def project_2d(vectors):
-    """PCA: squeezes 384-number embeddings into 2-D coordinates for the Paper Galaxy map.
-    Returns (coordinates, place, kept): place(vector) puts a new point (the question) on the same map."""
     mean = vectors.mean(axis=0)
     _, strengths, directions = np.linalg.svd(vectors - mean, full_matrices=False)
     axes = directions[:2].T
-    kept = float((strengths[:2] ** 2).sum() / (strengths ** 2).sum())  # share of information the 2-D map keeps
+    kept = float((strengths[:2] ** 2).sum() / (strengths ** 2).sum())
     return (vectors - mean) @ axes, (lambda v: (np.asarray(v) - mean) @ axes), kept

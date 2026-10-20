@@ -21,18 +21,17 @@ import streamlit as st
 from dotenv import load_dotenv
 from streamlit import runtime
 
-sys.dont_write_bytecode = True  # keep the project folder free of __pycache__
+sys.dont_write_bytecode = True
 import tools
 from agent import LLM, LLMError, run_agent
 from rag import Index, chunk, embed, project_2d, read_pdf
 from safety import check_pdf, has_injection
 
-# Streamlit settings, applied when the app is started with `python app.py`
 SETTINGS = {
-    "server.address": "localhost",  # only reachable from this computer
-    "server.maxUploadSize": 25,  # MB
+    "server.address": "localhost",
+    "server.maxUploadSize": 25,
     "server.fileWatcherType": "none",
-    "client.showErrorDetails": "none",  # no stack traces for users
+    "client.showErrorDetails": "none",
     "client.toolbarMode": "minimal",
     "browser.gatherUsageStats": "false",
     "logger.hideWelcomeMessage": "true",
@@ -62,9 +61,7 @@ VERDICT = {"supported": ("✓ Verified against the cited passages", "green"),
            "partially_supported": ("! Partly verified - check the sources", "orange"),
            "unsupported": ("✕ Could not verify every claim", "red")}
 
-# iOS-style look and animations
 CSS = """
-/* iOS-style look for the Streamlit app */
 :root {
   --bg: #F2F2F7; --card: #FFFFFF; --text: #1C1C1E; --text2: #6E6E73; --line: #E5E5EA; --fill: rgba(118,118,128,.12);
   --blue: #007AFF; --green: #34C759; --orange: #FF9500; --red: #FF3B30; --purple: #AF52DE; --indigo: #5856D6; --gray: #8E8E93;
@@ -72,8 +69,6 @@ CSS = """
 }
 .block-container { max-width: 1160px; padding-top: 4rem; }
 header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-filter: saturate(180%) blur(20px); }
-
-/* header and number widgets */
 .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); }
 .title { font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0 4px;
   background: linear-gradient(100deg, var(--text) 40%, var(--blue) 50%, var(--purple) 55%, var(--text) 65%);
@@ -88,8 +83,6 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
 .widget .label { font-size: 13px; font-weight: 600; color: var(--text2); }
 .widget .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
 @media (max-width: 820px) { .widgets { grid-template-columns: repeat(2, 1fr); } }
-
-/* tabs look like an iOS segmented control */
 [data-testid="stTabs"] [role="tablist"] { background: var(--fill); border-radius: 11px; padding: 3px; gap: 2px;
   border: none !important; width: fit-content; max-width: 100%; overflow-x: auto; }
 [data-testid="stTabs"] [role="tab"] { border-radius: 8px !important; padding: 6px 16px !important; margin: 0 !important;
@@ -98,8 +91,6 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] { background: var(--card) !important; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 [data-testid="stTabs"] .react-aria-SelectionIndicator { display: none !important; }
 [data-testid="stTabs"] [role="tabpanel"] { padding-top: 18px; animation: fade .3s ease both; }
-
-/* grouped lists, pills, icons */
 .section { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text2); margin: 20px 4px 8px; }
 .list { background: var(--card); border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
 .row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-top: .5px solid var(--line); animation: rise .45s ease both; }
@@ -121,8 +112,6 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
   animation: pulse 2s ease-out infinite; }
 .quote { background: var(--fill); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; white-space: pre-wrap;
   max-height: 220px; overflow: auto; margin-bottom: 10px; }
-
-/* chat: iMessage style */
 .me { display: flex; justify-content: flex-end; margin: 14px 0 8px; }
 .me div { background: var(--blue); color: #fff; padding: 9px 15px; border-radius: 20px 20px 6px 20px; max-width: 78%;
   white-space: pre-wrap; animation: pop .42s cubic-bezier(.34,1.56,.64,1) both; transform-origin: bottom right; }
@@ -133,16 +122,12 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
   box-shadow: var(--shadow); margin-bottom: 10px; }
 .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); animation: dot 1.2s infinite; }
 .typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
-
-/* glowing border while the agent works */
 [class*="st-key-thinking"] { position: relative; border-radius: 18px; padding: 2.5px !important; isolation: isolate;
   background: linear-gradient(90deg, #007AFF, #AF52DE, #FF2D55, #FF9500, #FFCC00, #34C759, #5AC8FA, #007AFF);
   background-size: 300% 100%; animation: flow 4s linear infinite; }
 [class*="st-key-thinking"]::before { content: ""; position: absolute; inset: -6px; border-radius: 24px; z-index: -1;
   background: inherit; background-size: 300% 100%; animation: flow 4s linear infinite; filter: blur(16px); opacity: .55; }
 [class*="st-key-thinking"] details { background: var(--card) !important; border-radius: 16px !important; }
-
-/* cards, empty states, forms */
 [class*="st-key-card"] { background: var(--card); border-radius: 18px; padding: 16px 18px; box-shadow: var(--shadow); animation: rise .5s ease both; }
 [class*="st-key-card"] [data-testid="stForm"] { border: none !important; padding: 4px 0 0 !important; }
 [class*="st-key-card"] [data-testid="stTextInputRootElement"] { background: var(--fill) !important; border-radius: 10px !important; border-color: transparent !important; }
@@ -160,8 +145,6 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(52,199,89,.55); } 60% { box-shadow: 0 0 0 6px transparent; } }
 @keyframes flow { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
 @keyframes shine { from { background-position: 120% 0; } to { background-position: -20% 0; } }
-
-/* people who turn on "reduce motion" in their system settings get no animation */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .title { -webkit-text-fill-color: var(--text); background: none; }
@@ -179,14 +162,13 @@ for key, value in {"papers": {}, "shas": {}, "chunks": {}, "vectors": {}, "cache
 if "index" not in s:
     s.index = Index()
 
-# ---------------- small HTML helpers (everything shown is escaped first) ----------------
 
 def esc(text):
     return html.escape(str(text if text is not None else ""))
 
 
 def md_safe(text):
-    return re.sub(r"([\\`*_\[\]<>#|])", r"\\\1", str(text))  # show text literally inside Markdown
+    return re.sub(r"([\\`*_\[\]<>#|])", r"\\\1", str(text))
 
 
 def show(markup):
@@ -198,7 +180,6 @@ def pills(items):
 
 
 def rows(items):
-    """iOS-style grouped list. items: (icon, colour, title, subtitle, text on the right)"""
     show('<div class="list">' + "".join(
         f'<div class="row"><span class="icon {c}">{esc(i)}</span><div class="body"><b>{esc(t)}</b>'
         f'<div class="sub">{esc(sub)}</div></div><span class="trail">{esc(right)}</span></div>'
@@ -217,10 +198,8 @@ def hero(subtitle, extra=""):
     show(f'<div class="eyebrow">Research paper agent</div><div class="title">ResearchAgent</div>'
          f'<div class="subtitle">{esc(subtitle)} {extra}</div>')
 
-# ---------------- papers ----------------
 
 def add_paper(data, filename):
-    """Checks, reads, splits and indexes one PDF."""
     name = re.sub(r"[^\w.\- ()]", "_", os.path.basename(filename))[:80] or "paper.pdf"
     ok, message, sha = check_pdf(data)
     if not ok:
@@ -275,8 +254,6 @@ def pick_example():
     s.pick = None
 
 
-# ---------------- sidebar ----------------
-
 with st.sidebar:
     section("Groq API key")
     if os.getenv("GROQ_API_KEY"):
@@ -304,7 +281,6 @@ with st.sidebar:
     st.button("Clear chat history", on_click=clear_chat, width="stretch", disabled=not s.chat)
     st.button("Remove all papers", on_click=remove_papers, width="stretch", disabled=not s.papers)
 
-# ---------------- running the agent ----------------
 
 ok_papers = {name: p for name, p in s.papers.items() if p["status"] == "ok"}
 infos = {name: tools.paper_info(name, c.get("metadata"), c["analysis"])
@@ -316,7 +292,6 @@ has_key = bool(s.api_key or os.getenv("GROQ_API_KEY"))
 
 
 def ask(question):
-    """Runs the agent with a live, glowing progress panel."""
     try:
         llm = LLM(s.api_key or None)
     except LLMError as e:
@@ -374,7 +349,6 @@ def show_turn(turn, number, animate=False, with_question=True):
 
 
 def flow_graph(turn):
-    """Graphviz picture of the steps that ran: dashed = added automatically, border colour = result."""
     colours = {"ok": "#34C759", "warning": "#FF9500", "error": "#FF3B30", "skipped": "#8E8E93"}
     status = {e["step"]: e["status"] for e in turn["trace"]}
     dot = ['digraph { rankdir=LR; bgcolor="transparent"; node [shape=box, style="rounded,filled", fillcolor=white, '
@@ -394,7 +368,6 @@ STAR = "M0,-1L0.29,-0.4L0.95,-0.31L0.47,0.15L0.59,0.81L0,0.5L-0.59,0.81L-0.47,0.
 
 
 def galaxy(question, colour_by):
-    """Every passage as a dot placed by meaning; the question is a star linked to the passages it retrieves."""
     names = [n for n in s.chunks if s.chunks[n]]
     passages = [c for n in names for c in s.chunks[n]]
     xy, place, kept = project_2d(np.vstack([s.vectors[n] for n in names]))
@@ -418,7 +391,6 @@ def galaxy(question, colour_by):
     chart = alt.layer(*layers).properties(height=520).configure_view(strokeWidth=0).interactive()
     return chart, kept, len(dots)
 
-# ---------------- page ----------------
 
 ready = ('<span class="pill green"><span class="live"></span>LLM ready</span>' if has_key
          else '<span class="pill orange">Add a Groq API key in the sidebar</span>')

@@ -1,4 +1,3 @@
-"""The agent's tools. Each tool does one job, uses its own prompt, and returns a plain dict."""
 import json
 import re
 import ssl
@@ -22,7 +21,6 @@ Rules:
 
 
 def evidence(chunks, prefix="S"):
-    """Wraps passages in numbered <evidence> tags so the model can cite them and treats them as data."""
     return "\n\n".join(f'<evidence id="{prefix}{i}" paper="{c["paper"]}" page="{c["page"]}" section="{c["section"]}">\n'
                        f'{clean_evidence(c["text"])}\n</evidence>' for i, c in enumerate(chunks, 1))
 
@@ -32,25 +30,21 @@ def chat(history):
 
 
 def as_text(value):
-    """Plain text for a field, even when the LLM nests it (a list, or {"description": ...})."""
     if isinstance(value, dict):
         value = [v for v in value.values() if isinstance(v, str)]
     if isinstance(value, list):
         value = "; ".join(as_text(v) for v in value if v)
-    value = re.sub(r"\s*(【[^】]*】|[(\[]E\d+(\s*[,;]\s*E\d+)*[)\]])", "", str(value or "")).strip()  # drop (E1) markers
+    value = re.sub(r"\s*(【[^】]*】|[(\[]E\d+(\s*[,;]\s*E\d+)*[)\]])", "", str(value or "")).strip()
     return value or NOT_FOUND
 
 
 def link(title, url):
-    """Markdown link, but only for normal web addresses (no javascript: or data: links)."""
     title = re.sub(r"[\[\]<>`*_|\\]", "", str(title))
     url = str(url or "")
     return f"[{title}]({url})" if re.fullmatch(r"https?://[^\s\"'<>()`]+", url) else title
 
-# ---------------- per-paper tools ----------------
 
 def metadata(llm, paper):
-    """Title, authors and year from the first page."""
     first_page = next((p for p in paper["pages"] if p.strip()), "")[:2500]
     out = llm.ask("You read the first page of a research paper. Return JSON with keys title, authors "
                   "(comma-separated names only) and year (4 digits). Use null for anything not printed." + RULES,
@@ -70,12 +64,11 @@ QUERIES = {"problem": "research problem motivation challenge addressed",
 
 
 def analyze(llm, index, name):
-    """One search per field inside this paper, then one LLM call that fills every field and cites its evidence."""
     found = {}
     for query in QUERIES.values():
         for c in index.search(query, k=2, papers=[name]):
             found.setdefault(c["id"], c)
-    chunks = [dict(c, text=c["text"][:650]) for c in list(found.values())[:14]]  # stays within the free-tier budget
+    chunks = [dict(c, text=c["text"][:650]) for c in list(found.values())[:14]]
     if not chunks:
         return None
     out = llm.ask(f"""You are a careful research-paper analyst. Using the excerpts from ONE paper, fill in:
@@ -94,13 +87,11 @@ def paper_info(name, meta, analysis):
     return {"paper": name, "title": meta.get("title"), "authors": meta.get("authors"), "year": meta.get("year"),
             **analysis["fields"], "pages": analysis["pages"]}
 
-# ---------------- question answering ----------------
 
 NO_EVIDENCE = "I couldn't find anything about this in the uploaded papers, so I won't guess."
 
 
 def rewrite_queries(llm, question, papers, draft=""):
-    """Rephrases a question into 3 searches using research-paper wording."""
     out = llm.ask('You improve search queries for research papers. Write 3 alternative queries using the words a paper '
                   'would use (technical terms, synonyms, section names like "experimental setup" or "training data"). '
                   'If a draft answer is given, target what it says is missing. Return JSON: {"queries": [...]}',
@@ -129,7 +120,6 @@ Return JSON: {"answer": "...", "answerable": "yes" | "partial" | "no"}""" + RULE
 
 
 def verify(llm, question, draft, chunks):
-    """Fact-check: an LLM judge checks each claim, and code checks that every [S#] citation exists."""
     out = llm.ask("""You are a strict fact-checker. Check every claim in the draft answer against the evidence.
 A claim is unsupported if the cited evidence does not say it. Saying that something is not reported is fine.
 Think it through in "reasoning" first. Return JSON: {"reasoning": "...",
@@ -149,7 +139,6 @@ Think it through in "reasoning" first. Return JSON: {"reasoning": "...",
         verdict = "partially_supported"
     return {"verdict": verdict, "problems": problems, "reasoning": out.get("reasoning", "")}
 
-# ---------------- comparison, gaps, literature, report ----------------
 
 def compare(llm, infos, question=""):
     if len(infos) < 2:
@@ -181,7 +170,7 @@ Return JSON: {"gaps": [{"direction": "...", "based_on": "which limitation of whi
     return {"status": "ok", "limitations": limits, "gaps": items}
 
 
-try:  # python.org builds on macOS have no root certificates; certifi provides them
+try:
     import certifi
     SSL = ssl.create_default_context(cafile=certifi.where())
 except ImportError:
@@ -195,7 +184,6 @@ def fetch(url):
 
 
 def search_literature(query, n=3):
-    """Related publications from arXiv, or OpenAlex if arXiv fails. Returns [] when both are unreachable."""
     words = [w for w in re.findall(r"[a-z0-9-]{3,}", query.lower()) if w not in STOPWORDS][:5]
     atom = {"a": "http://www.w3.org/2005/Atom"}
     try:
@@ -221,7 +209,6 @@ def cell(value):
 
 
 def report(question, infos, results, plan):
-    """Markdown report of everything the run produced. Every part says where it came from."""
     lines = ["# ResearchAgent report", f"_{datetime.now():%Y-%m-%d %H:%M} · {len(infos)} paper(s) · question: {question}_", ""]
     ans = results.get("answer_question")
     if ans:

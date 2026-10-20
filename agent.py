@@ -1,4 +1,3 @@
-"""The agent: plans which tools a question needs, runs them in order, and checks its own answer."""
 import json
 import os
 import re
@@ -27,8 +26,6 @@ def parse_json(text):
 
 
 class LLM:
-    """Groq chat API that returns JSON. The free tier allows about 8k tokens a minute per model, so when one
-    model is busy (HTTP 429) the call moves to the other, and only waits when both are busy."""
 
     def __init__(self, api_key=None):
         key = api_key or os.getenv("GROQ_API_KEY")
@@ -58,13 +55,12 @@ class LLM:
                 if status in (401, 403):
                     raise LLMError("Groq rejected the API key.")
                 errors.append(f"{model}: {e}"[:300])
-                if status == 429 and attempt % 2:  # both models are rate-limited: wait as long as Groq asks
+                if status == 429 and attempt % 2:
                     headers = getattr(getattr(e, "response", None), "headers", None) or {}
                     time.sleep(min(float(headers.get("retry-after", 5)), 20))
         raise LLMError(re.sub(r"gsk_\w+", "gsk_***", "The language model failed: " + " | ".join(errors[-2:])))
 
     def injection_score(self, text):
-        """Llama Prompt Guard 2: probability that the text is a jailbreak or prompt injection (None if unavailable)."""
         try:
             reply = self.client.chat.completions.create(model="meta-llama/llama-prompt-guard-2-86m",
                                                         messages=[{"role": "user", "content": text[:2000]}])
@@ -72,9 +68,8 @@ class LLM:
         except Exception:
             return None
 
-# ---------------- planning ----------------
 
-TOOLS = {  # name: (description the planner sees, tools that must run first)
+TOOLS = {
     "extract_metadata": ("title, authors and year of each paper", []),
     "analyze_papers": ("structured summary of each paper: problem, objectives, dataset, method, models, metrics, "
                        "results, limitations", []),
@@ -106,7 +101,6 @@ Request: "What's the weather in Mumbai today?"  (papers: x.pdf)
 
 
 def make_plan(llm, question, papers, history=()):
-    """Asks the LLM which tools to use. Unknown tools/papers are dropped; keyword rules take over if it fails."""
     tool_list = "\n".join(f"- {name}: {desc}" for name, (desc, _) in TOOLS.items() if name != "verify_answer")
     system = f"""You are the planning step of a research-paper agent. You don't answer; you choose which tools run.
 Tools:
@@ -148,8 +142,6 @@ def fallback_plan(question, why):
 
 
 def with_prerequisites(steps):
-    """Adds missing prerequisites and two fixed policies: answers are always fact-checked,
-    research gaps are always checked against existing literature."""
     wanted = set(steps)
     if "answer_question" in wanted:
         wanted.add("verify_answer")
@@ -158,10 +150,9 @@ def with_prerequisites(steps):
     while True:
         missing = {need for step in wanted for need in TOOLS[step][1]} - wanted
         if not missing:
-            return [step for step in TOOLS if step in wanted]  # TOOLS is already in a valid running order
+            return [step for step in TOOLS if step in wanted]
         wanted |= missing
 
-# ---------------- running a plan ----------------
 
 OUT_OF_SCOPE = ("That question doesn't seem to be about the uploaded papers, so I haven't answered it. "
                 "Try asking about their datasets, methods, results, limitations or research gaps.")
@@ -172,7 +163,7 @@ class Agent:
     def __init__(self, llm, papers, index, history=(), cache=None, on_step=None):
         self.llm, self.papers, self.index = llm, papers, index
         self.history = list(history)[-3:]
-        self.cache = {} if cache is None else cache  # {paper: {"metadata": ..., "analysis": ...}} kept between questions
+        self.cache = {} if cache is None else cache
         self.on_step = on_step
         self.trace, self.results, self.infos, self.steps, self.plan = [], {}, {}, [], None
 
@@ -200,7 +191,7 @@ class Agent:
         self.plan = make_plan(self.llm, question, list(self.papers), self.history)
         self.log("plan", "ok" if self.plan["source"] == "llm" else "warning", self.plan["reasoning"], t)
         steps = self.plan["steps"]
-        if not self.plan["in_scope"]:  # double-check the planner before refusing
+        if not self.plan["in_scope"]:
             best = max((c["score"] for c in self.index.search(question, 3)), default=0)
             if best < 0.45:
                 self.log("scope_check", "ok", f"Not about the papers (best match {best:.2f}), so no tools run.")
@@ -216,7 +207,7 @@ class Agent:
             t = time.time()
             try:
                 status, detail = getattr(self, step)()
-            except Exception as e:  # one failing tool never stops the whole run
+            except Exception as e:
                 status, detail = "error", f"{type(e).__name__}: {e}"
             self.log(step, status, detail, t)
         return self.finish(self.final_answer(), started)
@@ -230,7 +221,6 @@ class Agent:
         return self.plan["papers"] or list(self.papers)
 
     def each_paper(self, kind, work):
-        """Runs work(paper) for papers not done before (3 at a time) and remembers the results."""
         todo = [p for p in self.targets() if kind not in self.cache.get(p, {})]
 
         def attempt(name):
@@ -248,7 +238,6 @@ class Agent:
         return ("ok" if len(done) == len(self.targets()) else "warning",
                 f"{len(done)}/{len(self.targets())} papers" + (f" ({reused} reused from earlier)" if reused else ""))
 
-    # ----- the tools -----
 
     def extract_metadata(self):
         return self.each_paper("metadata", lambda name: tools.metadata(self.llm, self.papers[name]))
@@ -262,7 +251,7 @@ class Agent:
 
     def search(self, query, k=6):
         hits = self.index.search(query, k, self.plan["papers"] or None, min_score=MIN_SCORE)
-        if len(self.targets()) > 1:  # give every paper a chance to contribute evidence
+        if len(self.targets()) > 1:
             for paper in self.targets():
                 hits += self.index.search(query, 2, [paper], min_score=MIN_SCORE)
         return hits
@@ -276,11 +265,11 @@ class Agent:
 
     def rag_retrieval(self):
         query = self.question
-        if self.history and len(query.split()) <= 8:  # short follow-up such as "and its limitations?"
+        if self.history and len(query.split()) <= 8:
             query = self.history[-1]["question"] + " " + query
         chunks = self.merge(self.search(query))
         rewrites = []
-        if max((c["score"] for c in chunks), default=0) < 0.35:  # weak evidence: search again in paper vocabulary
+        if max((c["score"] for c in chunks), default=0) < 0.35:
             rewrites = tools.rewrite_queries(self.llm, self.question, self.targets())
             chunks = self.merge(chunks, *[self.search(q) for q in rewrites])
         self.results["rag_retrieval"] = {"chunks": chunks, "rewrites": rewrites}
@@ -294,7 +283,6 @@ class Agent:
         infos = list(self.infos.values())
         ans = tools.answer(self.llm, self.question, chunks, infos, self.history, feedback)
         if not feedback and chunks and ans["answerable"] in ("no", "partial"):
-            # The draft says something is missing: search deeper around the gap and keep the better answer.
             queries = tools.rewrite_queries(self.llm, self.question, self.targets(), ans["text"])
             more = self.merge(chunks, *[self.search(q, k=10) for q in queries], k=len(chunks) + 6)
             if {c["id"] for c in more} - {c["id"] for c in chunks}:
@@ -311,7 +299,7 @@ class Agent:
         if not ans or not ans["sources"]:
             return "skipped", "Nothing to check (no evidence-based answer)."
         check = tools.verify(self.llm, self.question, ans["text"], list(ans["sources"].values()))
-        if check["verdict"] != "supported" and check["problems"]:  # reflection: fix the answer once
+        if check["verdict"] != "supported" and check["problems"]:
             self.answer_question(feedback="\n".join(check["problems"]))
             fixed = self.results["answer_question"]
             check = dict(tools.verify(self.llm, self.question, fixed["text"], list(fixed["sources"].values())),
@@ -335,7 +323,7 @@ class Agent:
 
     def search_related_work(self):
         gap = self.results.get("identify_research_gaps", {})
-        if gap.get("gaps"):  # check each suggested gap against existing literature
+        if gap.get("gaps"):
             with ThreadPoolExecutor(max_workers=4) as pool:
                 found = list(pool.map(lambda g: tools.search_literature(g["query"]), gap["gaps"][:4]))
             for g, papers in zip(gap["gaps"], found):
