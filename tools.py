@@ -32,9 +32,13 @@ def chat(history):
 
 
 def as_text(value):
+    """Plain text for a field, even when the LLM nests it (a list, or {"description": ...})."""
+    if isinstance(value, dict):
+        value = [v for v in value.values() if isinstance(v, str)]
     if isinstance(value, list):
-        value = "; ".join(str(v) for v in value if v)
-    return str(value).strip() if value else NOT_FOUND
+        value = "; ".join(as_text(v) for v in value if v)
+    value = re.sub(r"\s*(【[^】]*】|[(\[]E\d+(\s*[,;]\s*E\d+)*[)\]])", "", str(value or "")).strip()  # drop (E1) markers
+    return value or NOT_FOUND
 
 
 def link(title, url):

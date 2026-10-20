@@ -149,11 +149,11 @@ class Index:
         self.vectors = faiss.IndexFlatIP(384)
         self.chunks, self.term_counts, self.doc_freq = [], [], Counter()
 
-    def add(self, chunks, vectors=None):
-        """Adds chunks (re-uses saved vectors when given) and returns the vectors."""
+    def add(self, chunks):
+        """Adds chunks to both indexes and returns their vectors (used by the Paper Galaxy)."""
         if not chunks:
             return np.zeros((0, 384), dtype="float32")
-        vectors = embed(c["text"] for c in chunks) if vectors is None else np.asarray(vectors, dtype="float32")
+        vectors = embed(c["text"] for c in chunks)
         self.vectors.add(vectors)
         self.chunks += chunks
         for c in chunks:
