@@ -55,7 +55,7 @@ SAMPLES = {"rag_lewis_2020.pdf": "2005.11401", "self_rag_2023.pdf": "2310.11511"
 EXAMPLES = ["Compare these papers and identify potential research gaps.",
             "Which datasets and evaluation metrics does each paper use?",
             "What limitations do the authors report?", "Find recent papers related to this work."]
-STATUS = {"ok": ("✓", "green"), "warning": ("!", "orange"), "error": ("✕", "red"), "blocked": ("⛔", "red"),
+STATUS = {"ok": ("✓", "green"), "warning": ("!", "orange"), "error": ("✕", "red"), "blocked": ("✕", "red"),
           "skipped": ("–", ""), "info": ("i", "blue")}
 VERDICT = {"supported": ("✓ Verified against the cited passages", "green"),
            "partially_supported": ("! Partly verified - check the sources", "orange"),
@@ -132,7 +132,6 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
 [class*="st-key-card"] [data-testid="stForm"] { border: none !important; padding: 4px 0 0 !important; }
 [class*="st-key-card"] [data-testid="stTextInputRootElement"] { background: var(--fill) !important; border-radius: 10px !important; border-color: transparent !important; }
 .empty { background: var(--card); border-radius: 22px; padding: 34px 28px; box-shadow: var(--shadow); text-align: center; animation: rise .5s ease both; }
-.empty .big { font-size: 44px; }
 .empty h3 { font-size: 22px; margin: 6px 0; }
 .empty p { color: var(--text2); max-width: 520px; margin: 0 auto; }
 [data-testid="stExpander"] details { border: none !important; border-radius: 14px !important; background: var(--card); box-shadow: var(--shadow); }
@@ -151,7 +150,7 @@ header[data-testid="stHeader"] { background: rgba(242,242,247,.72); backdrop-fil
 }
 """
 
-st.set_page_config(page_title="ResearchAgent", page_icon="🔬", layout="wide")
+st.set_page_config(page_title="ResearchAgent", page_icon=":material/menu_book:", layout="wide")
 st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
 
 s = st.session_state
@@ -190,8 +189,8 @@ def section(title):
     show(f'<div class="section">{esc(title)}</div>')
 
 
-def empty(icon, title, text):
-    show(f'<div class="empty"><div class="big">{esc(icon)}</div><h3>{esc(title)}</h3><p>{esc(text)}</p></div>')
+def empty(title, text):
+    show(f'<div class="empty"><h3>{esc(title)}</h3><p>{esc(text)}</p></div>')
 
 
 def hero(subtitle, extra=""):
@@ -323,7 +322,7 @@ def show_turn(turn, number, animate=False, with_question=True):
     if with_question:
         show(f'<div class="me"><div>{esc(turn["question"])}</div></div>')
     with st.container(key=f"answer_{number}"):
-        show('<div class="ai">✦ ResearchAgent</div>')
+        show('<div class="ai">ResearchAgent</div>')
         if turn["blocked"]:
             pills([("Blocked by the guardrails", "red")])
             st.markdown(md_safe(turn["answer"]))
@@ -400,7 +399,7 @@ chat_tab, trace_tab, analysis_tab, galaxy_tab, report_tab = st.tabs(["Chat", "Tr
 
 with chat_tab:
     if not ok_papers:
-        empty("🔬", "Add some research papers", "Upload 2-5 PDFs in the sidebar or load the 3 sample papers. Then ask a "
+        empty("Add some research papers", "Upload 2-5 PDFs in the sidebar or load the 3 sample papers. Then ask a "
               "question: the agent plans its steps, searches the papers, cites pages and checks its own answer.")
     else:
         for n, turn in enumerate(s.chat):
@@ -421,7 +420,7 @@ with chat_tab:
 
 with trace_tab:
     if not s.chat:
-        empty("🧭", "No questions yet", "The plan for each question, and every step the agent took, will appear here.")
+        empty("No questions yet", "The plan for each question, and every step the agent took, will appear here.")
     else:
         turn = s.chat[-1]
         section("Question")
@@ -429,7 +428,7 @@ with trace_tab:
                                               f"{turn['tokens']} tokens · {turn['seconds']}s", "")])
         if turn["plan"]:
             section("Plan")
-            rows([("◎", "purple", "Planner (" + ("LLM" if turn["plan"]["source"] == "llm" else "keyword rules") + ")",
+            rows([("P", "purple", "Planner (" + ("LLM" if turn["plan"]["source"] == "llm" else "keyword rules") + ")",
                    turn["plan"]["reasoning"], ""),
                   ("→", "indigo", "Chosen tools", " → ".join(turn["plan"]["steps"]) or "none", "")])
             st.graphviz_chart(flow_graph(turn), width="stretch")
@@ -441,7 +440,7 @@ with trace_tab:
 
 with analysis_tab:
     if not infos and not latest.get("search_related_work"):
-        empty("📊", "No analysis yet", "Ask “Compare these papers and identify potential research gaps” to fill this page.")
+        empty("No analysis yet", "Ask \"Compare these papers and identify potential research gaps\" to fill this page.")
     for name, info in infos.items():
         with st.expander(info["title"] or name):
             pills([(name, ""), (info["authors"] or "authors not found", ""), (info["year"] or "year not found", "")])
@@ -454,7 +453,7 @@ with analysis_tab:
         st.dataframe(pd.DataFrame(comparison["table"]).T, width="stretch")
         rows([("=", "blue", "Similarities (AI-generated)", comparison["similarities"], ""),
               ("≠", "purple", "Differences (AI-generated)", comparison["differences"], ""),
-              ("★", "orange", "Takeaway (AI-generated)", comparison["takeaway"], "")])
+              ("T", "orange", "Takeaway (AI-generated)", comparison["takeaway"], "")])
     gap = latest.get("identify_research_gaps")
     if gap and gap["status"] == "ok":
         section("Potential research gaps (suggestions, not confirmed novel ideas)")
@@ -472,10 +471,10 @@ with analysis_tab:
 
 with galaxy_tab:
     if sum(len(c) for c in s.chunks.values()) < 3:
-        empty("✦", "Your galaxy is empty", "Add papers to see every passage placed on a map by meaning.")
+        empty("Your galaxy is empty", "Add papers to see every passage placed on a map by meaning.")
     else:
         st.caption("Every dot is a passage. Passages with similar meaning sit close together (their 384-number "
-                   "embeddings squeezed into 2-D with PCA). Type a question to see where it lands (★) and which "
+                   "embeddings squeezed into 2-D with PCA). Type a question to see where it lands (the star) and which "
                    "passages the agent would retrieve (orange). Scroll to zoom, hover to read.")
         left, right = st.columns([3, 1])
         question = left.text_input("Drop a question into the galaxy", value=s.chat[-1]["question"] if s.chat else "",
@@ -490,7 +489,7 @@ with galaxy_tab:
 with report_tab:
     report = latest.get("generate_report")
     if not report:
-        empty("📄", "No report yet", "Ask for one, e.g. “Compare these papers and identify potential research gaps”.")
+        empty("No report yet", "Ask for one, e.g. \"Compare these papers and identify potential research gaps\".")
         if ok_papers and has_key:
             st.button("Write a full report", type="primary", on_click=queue,
                       args=("Write a full report comparing these papers, including potential research gaps.",))
